@@ -2,7 +2,7 @@
 BUILD_MODE=$1
 
 PROGRAM_NAME="Program";
-SOURCE_FILE_NAME="main.c";
+SOURCE_FILE_NAME="root.c";
 
 LIBS=""
 # for raylib:
