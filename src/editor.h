@@ -17,7 +17,6 @@ typedef struct {
 } OpenBuffer;
 
 typedef struct {
-    int *chars_pressed;
     int *keys_pressed;
 } Input;
 

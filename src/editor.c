@@ -2,6 +2,24 @@
 
 #include "editor.h"
 
+#define ESC 27
+
+bool is_white_space(char c) {
+    return is_new_line(c) || c == ' ' || c == '\t';
+}
+
+bool is_alphabetic(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+bool is_number(char c) {
+    return (c >= '0' && c <= '9');
+}
+
+bool is_alpha_numeric(char c) {
+    return is_alphabetic(c) || is_number(c);
+}
+
 size_t *get_line_indices(char *text) {
     size_t *lines = NULL;
     arrpush(lines, 0);
@@ -85,15 +103,34 @@ void cursor_move_down(OpenBuffer *buffer_state) {
     }
 }
 
+void cursor_move_left_word(OpenBuffer *buffer_state) {
+    // move ahead at least one char
+    if(buffer_state->cursor_pos < arrlenu(buffer_state->buffer)) ++buffer_state->cursor_pos;
+
+    while(buffer_state->cursor_pos < arrlenu(buffer_state->buffer) &&
+          (is_alpha_numeric(buffer_state->buffer[buffer_state->cursor_pos]) ||
+          buffer_state->buffer[buffer_state->cursor_pos] == '_'))
+        ++buffer_state->cursor_pos;
+    while(buffer_state->cursor_pos < arrlenu(buffer_state->buffer) &&
+          is_white_space(buffer_state->buffer[buffer_state->cursor_pos]))
+        ++buffer_state->cursor_pos;
+}
+
 void insert_char(OpenBuffer *buffer, char c) {
     arrins(buffer->buffer, buffer->cursor_pos, c);
     ++buffer->cursor_pos;
     buffer->line_indices = get_line_indices(buffer->buffer);
 }
 
+void delete_char(OpenBuffer *buffer) {
+    arrdel(buffer->buffer, buffer->cursor_pos - 1);
+    --buffer->cursor_pos;
+    buffer->line_indices = get_line_indices(buffer->buffer);
+}
+
 void edit_buffer_normal(OpenBuffer *buffer, Input *input) {
-    for(int i = 0; i < arrlen(input->chars_pressed); ++i) {
-        switch(input->chars_pressed[i]) {
+    for(int i = 0; i < arrlen(input->keys_pressed); ++i) {
+        switch(input->keys_pressed[i]) {
             case 'h': {
                 cursor_move_left(buffer);
             } break;
@@ -105,6 +142,9 @@ void edit_buffer_normal(OpenBuffer *buffer, Input *input) {
             } break;
             case 'l': {
                 cursor_move_right(buffer);
+            } break;
+            case 'w': {
+                cursor_move_left_word(buffer);
             } break;
             case 'i': {
                 buffer->mode = INSERT;
@@ -122,23 +162,21 @@ void edit_buffer_normal(OpenBuffer *buffer, Input *input) {
 void edit_buffer_insert(OpenBuffer *buffer, Input *input) {
     for(int i = 0; i < arrlen(input->keys_pressed); ++i) {
         switch(input->keys_pressed[i]) {
-            case KEY_ESCAPE: {
+            case ESC: {
                 buffer->mode = NORMAL;
             } break;
-            case KEY_BACKSPACE: {
+            case '\b': {
                 if(buffer->cursor_pos > 0) {
-                    arrdel(buffer->buffer, buffer->cursor_pos - 1);
-                    --buffer->cursor_pos;
-                    buffer->line_indices = get_line_indices(buffer->buffer);
+                    delete_char(buffer);
                 }
             } break;
-            case KEY_ENTER: {
+            case '\r': {
                 insert_char(buffer, '\n');
-            }
+            } break;
+            default: {
+                insert_char(buffer, input->keys_pressed[i]);
+            } break;
         }
-    }
-    for(int i = 0; i < arrlen(input->chars_pressed); ++i) {
-        insert_char(buffer, input->chars_pressed[i]);
     }
 }
 
@@ -151,5 +189,18 @@ void edit_buffer(OpenBuffer *buffer, Input *input) {
             edit_buffer_insert(buffer, input);
         } break;
     }
+}
+
+void open_new_buffer(OpenBuffer *buffer, char *file_name) {
+    buffer->file_name = file_name;
+    buffer->buffer = read_entire_file(buffer->file_name);
+    if(!buffer->buffer) {
+        arrpush(buffer->buffer, '\n');
+    }
+    buffer->line_indices = get_line_indices(buffer->buffer);
+    buffer->cursor_pos = 0;
+    buffer->scrolled_lines = 0;
+    buffer->mode = NORMAL;
+    buffer->editing = true;
 }
 
